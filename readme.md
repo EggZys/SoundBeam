@@ -39,18 +39,26 @@ cd pc-audio-streamer
 ```
 
 2. **Create a virtual environment (Recommended):**
-`python -m venv venv`
+```bash
+python -m venv venv
+```
 
 Activate on Windows:
-`venv\Scripts\activate`
+```bash
+venv\Scripts\activate
+```
 
 3. **Install dependencies:**
-`pip install -r requirements.txt`
+```bash
+pip install -r requirements.txt
+```
 
 ## 🎮 Usage
 
 1. **Start the server:**
-`python main.py`
+```bash
+python main.py
+```
 
 2. **Connect from your phone:**
 - The script will print your local IP address, e.g., `http://192.168.1.5:5000`.
