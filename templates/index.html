@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>PC Stream</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+        <style>
+        :root {
+            --primary: #1db954;
+            --bg: #0b0b0b;
+            --text-main: #fff;
+            --text-sub: rgba(255,255,255,0.6);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* ШУМ (Зернистость) - Скрывает пикселизацию фона */
+        .noise {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            z-index: 0; pointer-events: none;
+        }
+
+        .backdrop {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-size: cover; background-position: center;
+            filter: blur(60px) brightness(0.5); /* Чуть меньше блюра, чтобы сохранить цвета */
+            z-index: -1; transition: background-image 1s ease;
+            transform: scale(1.1); /* Чтобы края блюра не белели */
+        }
+
+        .player-container {
+            width: 85%; max-width: 380px;
+            display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
+            z-index: 10;
+        }
+
+        .cover-wrapper {
+            position: relative; width: 280px; height: 280px;
+            margin-bottom: 10px;
+        }
+        
+        .album-art {
+            width: 100%; height: 100%; border-radius: 16px;
+            background-color: #222; background-size: cover; background-position: center;
+            background-repeat: no-repeat;
+            
+            /* ВАЖНО: Сглаживание картинки */
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: high-quality;
+            
+            position: relative; z-index: 2; box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* Более мягкое свечение */
+        .album-glow {
+            position: absolute; top: 10px; left: 0; width: 100%; height: 100%;
+            background: inherit; background-size: cover; 
+            filter: blur(25px) saturate(150%); opacity: 0; z-index: 1; border-radius: 16px;
+            transform: scale(0.95);
+            transition: opacity 0.8s ease;
+        }
+
+        .playing .album-art { transform: scale(1.05); }
+        .playing .album-glow { opacity: 0.6; animation: breathe 4s infinite ease-in-out; }
+        
+        @keyframes breathe { 0% { opacity: 0.5; transform: scale(0.95); } 50% { opacity: 0.7; transform: scale(1.0); } 100% { opacity: 0.5; transform: scale(0.95); } }
+
+        .track-info { text-align: left; width: 100%; margin-bottom: 5px; }
+        .track-title {
+            font-size: 1.6rem; font-weight: 800; margin-bottom: 0.3rem; letter-spacing: -0.5px;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .track-artist { font-size: 1.1rem; color: var(--text-sub); font-weight: 500; }
+
+        .progress-container { width: 100%; margin-bottom: 10px; cursor: pointer; } /* cursor pointer для будущего перемотки */
+        .progress-bar {
+            width: 100%; height: 6px; background: rgba(255,255,255,0.1);
+            border-radius: 3px; overflow: hidden; position: relative;
+        }
+        .progress-fill {
+            height: 100%; width: 0%; background: #fff; border-radius: 3px;
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+            transition: width 0.1s linear;
+        }
+        .time-labels {
+            display: flex; justify-content: space-between;
+            font-size: 0.8rem; color: var(--text-sub); margin-top: 8px; font-variant-numeric: tabular-nums; font-weight: 500;
+        }
+
+        .controls { display: flex; align-items: center; justify-content: center; gap: 2rem; width: 100%; }
+        button { border: none; background: none; cursor: pointer; color: var(--text-main); transition: transform 0.1s; display: flex; align-items: center; justify-content: center; }
+        button:active { transform: scale(0.9); }
+        
+        .btn-play { 
+            width: 72px; height: 72px; border-radius: 50%; 
+            background: #fff; color: #000; font-size: 26px; 
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2); 
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-play:hover { transform: scale(1.05); box-shadow: 0 10px 25px rgba(255,255,255,0.2); }
+        .btn-play:active { transform: scale(0.95); }
+        
+        .btn-sec { font-size: 28px; opacity: 0.6; transition: opacity 0.2s; }
+        .btn-sec:hover { opacity: 1; }
+
+        .status-bar { position: absolute; bottom: 25px; font-size: 0.75rem; color: rgba(255,255,255,0.3); display: flex; align-items: center; gap: 6px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: #555; }
+        .dot.live { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    </style>
+</head>
+<body>
+    <div class="backdrop" id="backdrop"></div>
+    <div class="player-container">
+        <div class="cover-wrapper">
+            <div class="album-glow" id="albumGlow"></div>
+            <div class="album-art" id="albumArt"></div>
+        </div>
+        
+        <div class="track-info">
+            <div class="track-title" id="title">Not Playing</div>
+            <div class="track-artist" id="artist">Connect to PC</div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="time-labels">
+                <span id="currentTime">0:00</span>
+                <span id="totalTime">0:00</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-sec"><i class="fa-solid fa-backward-step"></i></button>
+            <button class="btn-play" id="btnPlay" onclick="toggleAudio()">
+                <i class="fa-solid fa-play" id="icon-play" style="margin-left: 3px;"></i>
+                <i class="fa-solid fa-pause" id="icon-stop" style="display:none;"></i>
+            </button>
+            <button class="btn-sec" onclick="nextTrack()"><i class="fa-solid fa-forward-step"></i></button>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div class="dot" id="statusDot"></div>
+        <span id="statusText">Disconnected</span>
+    </div>
+
+        <script>
+        const SAMPLE_RATE = 48000;
+        let audioCtx, ws, isPlaying = false;
+        let currentThumbnail = null;
+        
+        // --- УЛУЧШЕННЫЙ ТАЙМЕР ---
+        let trackDuration = 0;
+        let trackPosition = 0;
+        let lastLocalUpdate = performance.now();
+        let isPaused = true;
+        let serverPosition = 0; // Последнее значение от сервера
+
+        const ui = {
+            playIcon: document.getElementById('icon-play'),
+            stopIcon: document.getElementById('icon-stop'),
+            album: document.getElementById('albumArt'),
+            glow: document.getElementById('albumGlow'),
+            backdrop: document.getElementById('backdrop'),
+            container: document.querySelector('.player-container'),
+            title: document.getElementById('title'),
+            artist: document.getElementById('artist'),
+            dot: document.getElementById('statusDot'),
+            text: document.getElementById('statusText'),
+            fill: document.getElementById('progressFill'),
+            currTime: document.getElementById('currentTime'),
+            totTime: document.getElementById('totalTime')
+        };
+
+        function toggleAudio() {
+            if (!isPlaying) startStream();
+            else stopStream();
+        }
+
+        function startStream() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!audioCtx) audioCtx = new AudioContext({ latencyHint: 'interactive', sampleRate: SAMPLE_RATE });
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            connectWS();
+            setPlayingState(true);
+        }
+
+        function stopStream() {
+            if (ws) ws.close();
+            if (audioCtx) audioCtx.suspend();
+            setPlayingState(false);
+        }
+
+        function setPlayingState(state) {
+            isPlaying = state;
+            ui.playIcon.style.display = state ? 'none' : 'block';
+            ui.stopIcon.style.display = state ? 'block' : 'none';
+            if (state) ui.container.classList.add('playing');
+            else ui.container.classList.remove('playing');
+        }
+
+        function connectWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(protocol + '//' + window.location.host + '/audio_ws');
+            ws.binaryType = 'arraybuffer';
+            let nextTime = 0;
+
+            ws.onopen = () => {
+                ui.dot.classList.add('live');
+                ui.text.innerText = "LIVE STREAM";
+                nextTime = audioCtx.currentTime + 0.1;
+            };
+
+            ws.onmessage = (event) => {
+                if (!audioCtx || audioCtx.state === 'suspended') return;
+                
+                // Декодирование аудио
+                const int16 = new Int16Array(event.data);
+                const float32_L = new Float32Array(int16.length / 2);
+                const float32_R = new Float32Array(int16.length / 2);
+                for (let i = 0; i < int16.length; i+=2) {
+                    float32_L[i/2] = int16[i] / 32768; float32_R[i/2] = int16[i+1] / 32768;
+                }
+                
+                const buffer = audioCtx.createBuffer(2, float32_L.length, SAMPLE_RATE);
+                buffer.copyToChannel(float32_L, 0); buffer.copyToChannel(float32_R, 1);
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer; source.connect(audioCtx.destination);
+                
+                const now = audioCtx.currentTime;
+                // Мягкая синхронизация звука
+                if (nextTime < now) nextTime = now + 0.04;
+                
+                source.start(nextTime);
+                nextTime += buffer.duration;
+            };
+            
+            ws.onclose = () => {
+                ui.dot.classList.remove('live'); ui.text.innerText = "Disconnected";
+                if (isPlaying) setTimeout(connectWS, 1000);
+            };
+        }
+
+        function nextTrack() {
+            fetch('/api/next', {method: 'POST'});
+            // Сбрасываем позицию визуально сразу при клике
+            trackPosition = 0; 
+            updateProgressUI();
+            
+            const btn = document.querySelectorAll('.btn-sec')[1];
+            btn.style.transform = 'scale(0.8)'; setTimeout(() => btn.style.transform = 'scale(1)', 150);
+        }
+
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return "0:00";
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // --- ЛОКАЛЬНЫЙ ТАЙМЕР (Плавность) ---
+        // Запускаем через requestAnimationFrame для максимальной плавности (60fps)
+        function updateTimer() {
+            if (!isPaused && trackDuration > 0) {
+                const now = performance.now();
+                const delta = (now - lastLocalUpdate) / 1000;
+                lastLocalUpdate = now;
+                
+                trackPosition += delta;
+                if (trackPosition > trackDuration) trackPosition = trackDuration;
+                
+                updateProgressUI();
+            } else {
+                lastLocalUpdate = performance.now(); // Обновляем метку времени даже на паузе
+            }
+            requestAnimationFrame(updateTimer);
+        }
+        requestAnimationFrame(updateTimer);
+
+        function updateProgressUI() {
+            const percent = trackDuration > 0 ? (trackPosition / trackDuration) * 100 : 0;
+            ui.fill.style.width = `${Math.min(percent, 100)}%`;
+            ui.currTime.innerText = formatTime(trackPosition);
+        }
+
+        // --- СИНХРОНИЗАЦИЯ С СЕРВЕРОМ (Раз в 1 сек) ---
+        setInterval(() => {
+            fetch('/api/status').then(r => r.json()).then(data => {
+                if (data.title) {
+                    ui.title.innerText = data.title;
+                    ui.artist.innerText = data.artist;
+                    document.title = "▶ " + data.title;
+                }
+                
+                if (data.timeline) {
+                    const serverPos = data.timeline.position;
+                    trackDuration = data.timeline.duration;
+                    
+                    // Обновляем статус паузы
+                    const newPausedState = (data.timeline.playback_status === 'Paused' || data.timeline.playback_status === 'Stopped');
+                    if (isPaused !== newPausedState) {
+                        isPaused = newPausedState;
+                        // Если сняли с паузы, подтягиваем время с сервера сразу
+                        if (!isPaused) trackPosition = serverPos;
+                    }
+
+                    // УМНАЯ СИНХРОНИЗАЦИЯ:
+                    // Если разница больше 3 секунд -> верим серверу (жесткий сброс)
+                    // Если разница маленькая -> игнорируем сервер (верим плавному локальному таймеру)
+                    // Исключение: если трек только начался (serverPos < 2), синхронизируем жестче
+                    
+                    const diff = Math.abs(trackPosition - serverPos);
+                    
+                    if (diff > 3 || (serverPos < 2 && diff > 0.5)) {
+                        console.log("Sync corrected:", trackPosition, "->", serverPos);
+                        trackPosition = serverPos;
+                    }
+
+                    ui.totTime.innerText = formatTime(trackDuration);
+                }
+
+                if (data.thumbnail !== undefined && data.thumbnail !== currentThumbnail) {
+                    currentThumbnail = data.thumbnail;
+                    const def = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23222"/><text x="50" y="50" font-family="sans-serif" font-size="30" fill="%23555" text-anchor="middle" dy=".3em">♫</text></svg>';
+                    const bg = data.thumbnail ? `url(data:image/png;base64,${data.thumbnail})` : `url('${def}')`;
+                    
+                    ui.album.style.backgroundImage = bg;
+                    ui.glow.style.backgroundImage = bg;
+                    ui.glow.style.opacity = data.thumbnail ? '0.6' : '0';
+                    ui.backdrop.style.backgroundImage = data.thumbnail ? bg : 'none';
+                }
+            });
+        }, 1000);
+    </script>
+</body>
+</html>

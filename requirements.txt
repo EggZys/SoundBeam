@@ -1,0 +1,5 @@
+flask==3.0.0
+flask-sock==0.7.0
+pyaudiowpatch==0.1.4
+winsdk==1.0.0b9
+pyautogui==0.9.54
