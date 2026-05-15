@@ -14,10 +14,6 @@
 > **Захвати системный звук Windows и стримь его на телефон через браузер.**
 > Никаких приложений. Только открыть ссылку — и слушать.
 
-<br/>
-
-[![Screenshot](https://s4.iimage.su/s/27/gNgbJOwxOiTwuLWCDlwzEXts3RazL9FNCnRRz2d6.png)](https://s4.iimage.su/s/27/gNgbJOwxOiTwuLWCDlwzEXts3RazL9FNCnRRz2d6.png)
-
 </div>
 
 ---
@@ -42,7 +38,7 @@
 │       Windows PC    │  ──────────────────→  │    Phone / Browser   │
 │                     │                       │                       │
 │  WASAPI Loopback    │   RAW PCM 48kHz       │    Web Audio API      │
-│  (системный звук)   │   ──────────────────→ │    (воспроизведение)  │
+│  (системный звук)   │  ──────────────────→  │    (воспроизведение)  │
 │                     │                       │                       │
 │  WinSDK / SMTC  ────┼── метаданные трека ─→ │    UI + обложка       │
 └─────────────────────┘                       └──────────────────────┘
