@@ -14,6 +14,10 @@
 > **Захвати системный звук Windows и стримь его на телефон через браузер.**
 > Никаких приложений. Только открыть ссылку — и слушать.
 
+<br/>
+
+<img src="https://raw.githubusercontent.com/EggZys/SoundBeam/main/assets/screenshot.png" width="300"/>
+
 </div>
 
 ---
